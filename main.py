@@ -632,9 +632,10 @@ for i, value in enumerate(allocation):
 (1+df_bl).cumprod().plot()
 qs.reports.metrics(df_bl, mode="full", display=True)
 
-for w in allocation:
-    plot_allocation_professional(w[1])
-    plot_allocation_professional(w[2])
+# fix
+# for w in allocation:
+#     plot_allocation_professional(w[1])
+#     plot_allocation_professional(w[2])
     
     
     
