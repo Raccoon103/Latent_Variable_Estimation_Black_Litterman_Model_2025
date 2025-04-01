@@ -2,7 +2,7 @@
 name = "latent-variable-estimation-black-litterman-model-2025"
 version = "0.1.0"
 description = ""
-authors = [""]
+authors = ["example@example.com"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
