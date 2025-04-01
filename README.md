@@ -6,7 +6,7 @@
 
 This project uses [Poetry](https://python-poetry.org/) for dependency management and packaging.
 
-Using Python 3.10. Required packages are stored in 'pyproject.toml'
+**Using Python 3.10**. Required packages are stored in `pyproject.toml`
 
 ### Prerequisites
 
