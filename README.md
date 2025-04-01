@@ -6,6 +6,8 @@
 
 This project uses [Poetry](https://python-poetry.org/) for dependency management and packaging.
 
+Using Python 3.10. Required packages are stored in 'pyproject.toml'
+
 ### Prerequisites
 
 Make sure you have Poetry installed. If not, install it with:
@@ -38,5 +40,5 @@ This will create a virtual environment and install all dependencies listed in `p
 3. **Run the project:**
 
 ```bash
-poetry run main.py
+poetry run python main.py
 ```
