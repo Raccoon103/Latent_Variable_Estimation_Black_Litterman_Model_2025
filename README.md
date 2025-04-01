@@ -25,7 +25,6 @@ Or refer to the [official Poetry installation guide](https://python-poetry.org/d
 1. **Clone the repository:**
 
 ```bash
-git clone git@github.com:Raccoon103/Latent_Variable_Estimation_Black_Litterman_Model_2025.git
 cd Latent_Variable_Estimation_Black_Litterman_Model_2025
 ```
 
