@@ -14,6 +14,8 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="numpy")
 warnings.filterwarnings("ignore", category=FutureWarning, module="quantstats")
 warnings.filterwarnings("ignore", message="dropping on a non-lexsorted multi-index")
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*Series.__setitem__.*")
+
 pd.set_option('future.no_silent_downcasting', True)
 
 
@@ -630,13 +632,12 @@ for i, value in enumerate(allocation):
     df_bl[f'BL {i+1}'] = value[0]['portfolio bl']
     
 (1+df_bl).cumprod().plot()
-qs.reports.metrics(df_bl, mode="full", display=True)
+# qs.reports.metrics(df_bl, mode="full", display=True)
+for col in df_bl.columns:
+    print(f"\n==== Metrics for {col} ====")
+    qs.reports.metrics(df_bl[col], mode="full", display=True)
 
-# fix
-# for w in allocation:
-#     plot_allocation_professional(w[1])
-#     plot_allocation_professional(w[2])
-    
+
     
     
 ### Academic Log-Scale Cumulative Plot
