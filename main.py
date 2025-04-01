@@ -9,18 +9,16 @@ import ta
 import quantstats as qs
 from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
-from sklearn.multioutput import MultiOutputRegressor
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
-
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="numpy")
 warnings.filterwarnings("ignore", category=FutureWarning, module="quantstats")
-
+warnings.filterwarnings("ignore", message="dropping on a non-lexsorted multi-index")
 pd.set_option('future.no_silent_downcasting', True)
 
-benchmark = ['^DJI','SPY']
 
+
+benchmark = ['^DJI','SPY']
 dji_components = {
     # Historical components of the Dow Jones Industrial Average: https://en.wikipedia.org/wiki/Historical_components_of_the_Dow_Jones_Industrial_Average
     "1991-05-06": ["AA", "AXP", "BA", "CAT", "CVX", "DD", "DIS", "FL", "GE", "GT", "HON", "IBM", "IP", "JPM", "KO", "MCD", "MMM", "MO", "MRK", "PG", "T", "XOM"],
@@ -54,9 +52,6 @@ dji_components = {
     #Non-existing or Inaccessible stock data
     "Removed" : ["BS", 'CRM', 'DOW', 'DWDP', "EK", 'GM', "KHC", 'S', 'SBC', "TX", 'UK', 'UTX', 'V', "WX"],
 }
-
-#stocks = ['XLB', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY']
-#stocks = ['XLB', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY', 'XLC', 'XLRE']
 sp_components = {
     "1998-12-22": ['XLB', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY'],
     #add "XLRE"
@@ -68,117 +63,16 @@ sp_components = {
     "Union": ['XLB', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY', 'XLC', 'XLRE'],
     "Removed" : [],
 }
-msci_world_index_components = {
-    # Components with the start dates of their respective ETFs
-    "1996-03-18": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU'],  # Initial ETFs launched
-    "2008-03-28": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS'],  # Adding Israel
-    "2010-05-07": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA'],  # Adding USA
-    "2010-09-02": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 'ENZL'],  # Adding New Zealand
-    "2012-01-24": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 'ENZL', 'ENOR'],  # Adding Norway
-    "2012-01-26": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 'ENZL', 'ENOR', 'EFNL', 'EDEN'],  # Adding Finland and Denmark
-    "2013-11-12": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 'ENZL', 'ENOR', 'EFNL', 'EDEN', 'PGAL'],  # Adding Portugal
-    # Union: all ETFs that have ever been part of the MSCI World Index
-    "Union": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-              'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
-              'ENZL', 'ENOR', 'EFNL', 'EDEN', 'PGAL'],
-    # Removed: countries or regions without ETFs
-    "Removed": ['Greece'],  # Greece was initially listed in developed country index, but then emerging market index.
-}
-msci_emerging_markets_components = {
-    # Components as of earlier dates with start times of ETFs
-    "1996-03-18": ['EWM', 'EWW'],  # Earliest available ETFs
-    "2000-05-12": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ'],  # Adding South Korea, Taiwan, Brazil
-    "2003-02-07": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA'],  # Adding South Africa
-    "2007-11-20": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH'],  # Adding Chile
-    "2008-03-28": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR'],  # Adding Turkey
-    "2008-04-01": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD'],  # Adding Thailand
-    "2009-02-09": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG'],  # Adding Colombia
-    "2009-06-22": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU'],  # Adding Peru
-    "2010-02-16": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT'],  # Adding Egypt
-    "2010-05-07": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO'],  # Adding Indonesia
-    "2010-05-26": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL'],  # Adding Poland
-    "2010-09-29": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE'],  # Adding Philippines
-    "2011-03-03": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE', 'ARGT'],  # Adding Argentina
-    "2011-03-31": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE', 'ARGT', 'MCHI'],  # Adding China
-    "2011-12-08": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE', 'ARGT', 'MCHI', 'GREK'],  # Adding Greece
-    "2012-02-03": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE', 'ARGT', 'MCHI', 'GREK', 'INDA'],  # Adding India
-    "2014-05-01": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE', 'ARGT', 'MCHI', 'GREK', 'INDA', 'QAT'],  # Adding Qatar
-    "2015-09-17": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE', 'ARGT', 'MCHI', 'GREK', 'INDA', 'QAT', 'KSA'],  # Adding Saudi Arabia
-    "2020-09-03": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE', 'ARGT', 'MCHI', 'GREK', 'INDA', 'QAT', 'KSA', 'KWT'],  # Adding Kuwait
-    # Union: all ETFs ever part of the MSCI Emerging Markets Index
-    "Union": ['EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 
-              'EPU', 'EGPT', 'EIDO', 'EPOL', 'EPHE', 'ARGT', 'MCHI', 'GREK', 'INDA', 
-              'QAT', 'KSA', 'KWT'],
-    # Removed: countries without standalone ETFs
-    "Removed": ['Czech Republic', 'Hungary'],
-}
-msci_combined_market_components = {
-    # Components with the start dates of their respective ETFs
-    "1996-03-18": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU',  # MSCI World ETFs
-                   'EWM', 'EWW'],  # MSCI Emerging Markets ETFs
-    "2000-05-12": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ'],  # Adding South Korea, Taiwan, Brazil
-    "2003-02-07": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA'],  # Adding South Africa
-    "2007-11-20": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH'],  # Adding Chile
-    "2008-03-28": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS',  # Adding Israel
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR'],  # Adding Turkey
-    "2008-04-01": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD'],  # Adding Thailand
-    "2009-02-09": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG'],  # Adding Colombia
-    "2009-06-22": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU'],  # Adding Peru
-    "2010-05-07": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA',  # Adding USA
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO'],  # Adding Egypt, Indonesia
-    "2010-09-02": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL'],  # Adding New Zealand
-    "2011-12-08": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL', 'GREK'],  # Adding Greece
-    "2014-05-01": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL', 'GREK', 'QAT'],  # Adding Qatar
-    "2020-09-03": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
-                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL', 'GREK', 'QAT', 'KWT'],  # Adding Kuwait
-    # Union: all ETFs that have ever been part of the combined MSCI Index
-    "Union": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
-              'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
-              'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 
-              'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL', 'GREK', 'QAT', 'KWT', 'ENOR', 'EFNL', 'EDEN', 'PGAL'],
-    # Removed: countries or regions without standalone ETFs
-    "Removed": ['Czech Republic', 'Hungary'],
-}
-#stocks = ['SPY','AGG','DBC','GLD','VNQ']
-#stocks = ['SPY', 'AGG', 'DBC', 'GLD', 'VNQ', 'EFA', 'VWO', 'QQQ', 'TLT', 'IEF', 'IWM', 'EWJ', 'EEM', 'FXI', 'GDX', 'SLV', 'HYG', 'LQD', 'TIP', 'XLE', 'XLK', 'XLF', 'XLV', 'XLY', 'VOO']
 
 
+# SPDR/DJIA Dataset
 _components = dji_components
 _update_date = list(_components.keys())[:-2]
 stocks = sorted(_components["Union"])
 
-
+# Start-End date
 data_start = '1991-01-01'
-decision_start = '1994-02-25'
+decision_start = '1994-01-01'
 end = '2024-02-25'
 
 # Global Samples
@@ -194,11 +88,10 @@ for stock in stocks:
 pivoted_data = data.pivot_table(index='Date', columns='Symbol', values='Adj Close').loc[decision_start:]
 pivoted_data.columns = pivoted_data.columns.droplevel() #drop multi-level
 df = pivoted_data
-
 df_returns = df.pct_change().iloc[1:]
 df = df.loc[df_returns.index]
 
-
+# 
 bdata = pd.DataFrame()
 for bm in benchmark:
     braw = yf.download(bm, start=df.index[0], end=df.index[-1], auto_adjust=False)
@@ -275,29 +168,6 @@ def plot_arrays(index, *arrays, labels=None, title='Plot', xlabel='Index', ylabe
 # plot_arrays(R_index, array1, array2, array3, labels=['Array 1', 'Array 2', 'Array 3'])
 
 
-def plot_allocation(df_weights):
-    df_weights = df_weights.fillna(0).ffill()
-    df_weights[df_weights < 0] = 0
-    
-    d = len(stocks)
-    colormap = matplotlib.colormaps['tab20c']
-    colors = [colormap(i / d) for i in range(d)[::-1]]  # Normalizing the index to get distinct colors
-    
-    # Plotting
-    fig, ax = plt.subplots(figsize=(20, 10), dpi=300)
-    areas = df_weights.plot.area(ax=ax, color=colors)
-    
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Allocation')
-    ax.set_title('Asset Allocation Over Time')
-    
-    # Placing the legend outside the plot
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(reversed(handles), reversed(labels), title='Assets', bbox_to_anchor=(1, 1), loc='upper left', fontsize='small')
-
-    plt.tight_layout()
-    plt.show()
-    return None
 
 def plot_allocation_professional(df_weights):
     df_weights = df_weights.fillna(0).ffill()
@@ -354,7 +224,7 @@ def plot_allocation_professional(df_weights):
     ax.legend(bbox_to_anchor=(1.01, 1), loc='upper left', fontsize=22)
 
     plt.tight_layout()
-    plt.savefig('SPY_asset_allocation_plot.eps', format='eps')
+    plt.savefig('asset_allocation_plot.eps', format='eps')
     plt.show()
 
 from gurobi_optimods.datasets import load_sharpe_ratio
@@ -561,43 +431,18 @@ def KL_sample(R):
     q_k = a_k + B_k @ E_ft
     # q_k = (q_k - Pc.iloc[-1])/Pc.iloc[-1]
     Sigma_f_k = B_k @ V_ft @ B_k.T
-    
-    # Return-Return Regression for q and Sigma_f
-    # q always prop to pi
-    # a, B = feature_regression(R, x)
-    # E_ft, V_ft = x.mean(), x.cov()
-    # q = a + B @ E_ft
-    # Sigma_f = B @ V_ft @ B.T
-    
-    
-    # Price-Feature SVR Kernel
-    # Good q but hardly affect
-    # Lambda_k, B_k, a_k = rolling_train(Pc, X, R.index[0], R.index[-1])
-    # E_ft, V_ft = X.mean(), X.cov()
-    # Pct_k = a_k + B_k @ E_ft
-    # q_k = (Pct_k - Pc.iloc[-1])/Pc.iloc[-1]
-    # Sigma_f_k = B_k @ V_ft @ B_k.T
-    
-    # Price-Feature Linear Regression
-    # Good q but hardly affect
+
     a, B, Xi = feature_regression(Pc, X)
     E_ft, V_ft = X.mean(), X.cov()
     Pct = a + B @ E_ft
     q = (Pct - Pc.iloc[-1])/Pc.iloc[-1]
     Sigma_f = B @ V_ft @ B.T
     
-    
-    # ARIMA for q and Sigma_f
-    # q, Sigma_f = arima_prediction(R)
-    
-    
-    #Error_k = Lambda_k #+ Sigma_f_k
-    #variance_k = np.linalg.pinv(np.linalg.pinv(Sigma*tau) + P.T @ np.linalg.pinv(Error_k) @ P)
     Error_k = Lambda_k
     variance_k = Sigma + np.linalg.pinv(np.linalg.pinv(Sigma*tau) + P.T @ np.linalg.pinv(Error_k) @ P)
     mean_k = variance_k @ (np.linalg.pinv(Sigma*tau) @ pi + P.T @ np.linalg.pinv(Error_k) @ q_k)
     
-    Uncertainty = Xi #+ Sigma_f
+    Uncertainty = Xi
     variance = np.linalg.pinv(np.linalg.pinv(Sigma*tau) + P.T @ np.linalg.pinv(Uncertainty) @ P)
     mean = variance @ (np.linalg.pinv(Sigma*tau) @ pi + P.T @ np.linalg.pinv(Uncertainty) @ q)
     
@@ -620,18 +465,14 @@ def max_sharpe_MKW(R):
         env.setParam('DualReductions', 0)
         env.start()
         with gp.Model(env=env, name = "portfolio") as m:
-            #m.params.NonConvex = 2
+            # m.params.NonConvex = 2
             # Long only
             y = m.addMVar(d, name="y", lb = 0, ub = gp.GRB.INFINITY)
             
-            # exp_return = y @ np.ones(d)
             exp_return = y @ mu #MAX Sharpe
             variance = (y @ Sigma) @ y
             
             if np.all(mu < 0):
-                print('MV_mu < 0')
-                #m.setObjective(variance, gp.GRB.MAXIMIZE)  # Minimize negative variance
-                #m.addConstr(exp_return == -1)  # Adjust expected return constraint
                 return None
             else:
                 m.setObjective(variance, gp.GRB.MINIMIZE)  # Minimize variance
@@ -648,20 +489,8 @@ def max_sharpe_MKW(R):
             if m.status == gp.GRB.OPTIMAL:
                 # Extract solution
                 y_opt = y.X  # Retrieve the solution as a numpy array
-    
                 solution = y_opt / y_opt.sum()
-                #print("Normalized solution:", solution)
-                
-                # # Compute and print expected return
-                # exp_return = np.dot(y_opt, mu)
-                # print("Expected Return (y @ mu):", exp_return)
-                # # Compute and print variance
-                # variance = np.dot(y_opt, np.dot(Sigma, y_opt))
-                # print("STD sqrt((y @ Sigma) @ y):", np.sqrt(variance))
-            
-                # print('Sharpe_y:', exp_return/np.sqrt(variance))
-                # print('Sharpe_x', solution @ mu/np.sqrt((solution @ Sigma) @ solution))
-            
+
             elif m.status == gp.GRB.INF_OR_UNBD:
                 print("Model is infeasible or unbounded.")
             else:
@@ -673,13 +502,7 @@ def max_sharpe_BL(R):   #Duplicate from max_sharpe_MKW() for multiprocessing pur
     cov_matrix = R.cov().values
     mean = R.mean().values
     d = len(R.columns)
-    
     mu, Sigma = KL_sample(R)
-    
-    # GTruth Test
-    # Gmu = np.array(df_returns[R.columns].iloc[df_returns.index.get_loc(R.index[-1])+1])
-    # Gmu[mu==0]=1e-6
-    # Sigma = cov_matrix
     
     with gp.Env(empty=True) as env:
         env.setParam('OutputFlag', 0)
@@ -691,20 +514,15 @@ def max_sharpe_BL(R):   #Duplicate from max_sharpe_MKW() for multiprocessing pur
             y = m.addMVar(d, name="y", lb=0, ub=gp.GRB.INFINITY)
     
             # Objective and constraints
-            # exp_return = y @ np.ones(d)
             exp_return = y @ mu  # MAX Sharpe
             variance = (y @ Sigma) @ y  # Variance
     
             # Check if all values in mu are negative
             if np.all(mu < 0):
-                print('BL_mu < 0')
-                #m.setObjective(variance, gp.GRB.MAXIMIZE)  # Minimize negative variance
-                #m.addConstr(exp_return == -1)  # Adjust expected return constraint
                 return None
             else:
                 m.setObjective(variance, gp.GRB.MINIMIZE)  # Minimize variance
                 m.addConstr(exp_return == 1)  # Standard expected return constraint
-    
             m.optimize()
     
             solution = None
@@ -712,20 +530,8 @@ def max_sharpe_BL(R):   #Duplicate from max_sharpe_MKW() for multiprocessing pur
             if m.status == gp.GRB.OPTIMAL:
                 # Extract solution
                 y_opt = y.X  # Retrieve the solution as a numpy array
-    
                 solution = y_opt / y_opt.sum()
-                #print("Normalized solution:", solution)
-                
-                # # Compute and print expected return
-                # exp_return = np.dot(y_opt, mu)
-                # print("Expected Return (y @ mu):", exp_return)
-                # # Compute and print variance
-                # variance = np.dot(y_opt, np.dot(Sigma, y_opt))
-                # print("STD sqrt((y @ Sigma) @ y):", np.sqrt(variance))
-            
-                # print('Sharpe_y:', exp_return/np.sqrt(variance))
-                # print('Sharpe_x', solution @ mu/np.sqrt((solution @ Sigma) @ solution))
-            
+
             elif m.status == gp.GRB.INF_OR_UNBD:
                 print("Model is infeasible or unbounded.")
             else:
@@ -739,7 +545,7 @@ def max_sharpe_BL(R):   #Duplicate from max_sharpe_MKW() for multiprocessing pur
 from datetime import datetime
 def BL(df, df_returns, lookback):
     print(f'lookback = {lookback}')
-    rb_idx = df.groupby(df.index.strftime('%Y-%W')).head(1).index
+    rb_idx = df.groupby(df.index.strftime('%Y-%m')).head(1).index
     rb_daily = df.index
     #print(real_idx)
     
@@ -786,36 +592,6 @@ def BL(df, df_returns, lookback):
         
         weights_bl.loc[date, R_n.columns] = max_sharpe_BL(R_n)
         weights_bl.loc[date] = weights_bl.loc[date].fillna(0) # Elimiate NaN today to avoid ffill later.
-    
-    # #Multiprocessing attempts (Failed)
-    # with Pool(cpu_count()) as p1:
-    #     Decision1 = p1.starmap_async(max_sharpe_MKW, GR_n)
-    #     p1.close()
-    #     p1.join()
-    
-    # with Pool(cpu_count()) as p2:
-    #     Decision2 = p2.starmap_async(max_sharpe_BL, GR_n)
-    #     p2.close()
-    #     p2.join()
-
-    # print(f'Decision_len: {len(Decision1)}')
-    # for entry in zip(GR_n, Decision1, Decision2):
-    #     R_n = entry[0]
-    #     decision1 = entry[1]
-    #     decision2 = entry[2]
-        
-    #     date = df.index[ df.index.get_loc(R_n.index[-1])+1 ]        
-    #     print(f'Decision after {R_n.index[-1]} is on {date}:')
-        
-    #     weights_mv.loc[date, R_n.columns] = decision1
-    #     weights_mv.loc[date] = weights_mv.loc[date].fillna(0)
-        
-    #     weights_bl.loc[date, R_n.columns] = decision2
-    #     weights_bl.loc[date] = weights_bl.loc[date].fillna(0)
-
-    #     print(weights_mv.loc[R_n.index[-5:].tolist()+[date]])
-    #     print(weights_bl.loc[R_n.index[-5:].tolist()+[date]])
-
         
     weights_mv = weights_mv.ffill().fillna(0)
     weights_mv = weights_mv.infer_objects(copy=False)
@@ -827,8 +603,6 @@ def BL(df, df_returns, lookback):
     for date_index in range(len(df)-1):
         bet_date = df.index[date_index]
         R_date = df.index[date_index + 1]
-        # print(date_index, bet_date, R_date)
-        # strategy.iloc[j+1, strategy.columns.get_loc('portfolio')] = np.sum(weights.iloc[j] * df_returns.iloc[j+1])
         strategy.loc[R_date, 'portfolio mv'] = np.sum(weights_mv.loc[bet_date] * df_returns.loc[R_date])
         strategy.loc[R_date, 'portfolio bl'] = np.sum(weights_bl.loc[bet_date] * df_returns.loc[R_date])
     
@@ -836,16 +610,7 @@ def BL(df, df_returns, lookback):
 
 
 print('Allocation: ')
-
-# lookback_var = [50,80,100]
-# pool_sz = cpu_count()
-# with Pool(pool_sz) as p:
-#     allocation = p.starmap(BL, [(df.copy(), df_returns.copy(), i) for i in lookback_var])
-#     p.close()
-#     p.join()
-
 allocation = [BL(df.copy(), df_returns.copy(), lookback = 50),
-              #BL(df.copy(), df_returns.copy(), lookback = 60),
               BL(df.copy(), df_returns.copy(), lookback = 80), 
               BL(df.copy(), df_returns.copy(), lookback = 100), 
               BL(df.copy(), df_returns.copy(), lookback = 120),
@@ -855,12 +620,6 @@ allocation = [BL(df.copy(), df_returns.copy(), lookback = 50),
 
 portfolio = 'portfolio bl'
 variant = ['portfolio mv']
-#plot_performance(allocation, portfolio, variant)
-
-# rb_date_index = 350
-# lookback = 50
-# R_n = df_returns.iloc[rb_date_index - lookback:rb_date_index]
-# plot_risk_return_profile(R_n)
 
 df_bl = pd.DataFrame()
 df_bl['EQW'] = eqw[0]['portfolio']
@@ -872,21 +631,20 @@ for i, value in enumerate(allocation):
     
 (1+df_bl).cumprod().plot()
 qs.reports.metrics(df_bl, mode="full", display=True)
-#qs.reports.metrics(df_returns, mode="full", display=True)
 
 for w in allocation:
-    plot_allocation(w[1])
-    plot_allocation(w[2])
+    plot_allocation_professional(w[1])
+    plot_allocation_professional(w[2])
     
     
     
-### Academic Plot
+### Academic Log-Scale Cumulative Plot
     
-# 1. Prepare Data (example setup)
+# Prepare Data
 df_clean = df_bl.drop(columns=[]).fillna(0)
 log_cumulative_returns = np.log1p(df_clean).cumsum()
 
-# 2. Identify Columns by Group
+# Identify Columns by Group
 bl_columns = [col for col in log_cumulative_returns.columns if "BL" in col]
 mv_columns = [col for col in log_cumulative_returns.columns if "MV" in col]
 other_columns = [
@@ -894,23 +652,22 @@ other_columns = [
     if col not in bl_columns + mv_columns
 ]
 
-# 3. Define Colors and Line Styles
+# Define Colors and Line Styles
 bl_color_base = (0.7, 0.0, 0.0)  # Dark Red (RGB)
 mv_color_base = (0.0, 0.7, 0.0)  # Dark Green (RGB)
 other_color = 'gray'  # Constant Gray for 'Other' models
 
-# 4. Set Style
+# Set Style
 plt.style.use('seaborn-v0_8-whitegrid')  # or any style from mpl.style.available
 fig, ax = plt.subplots(figsize=(22, 15))
 
-# 5. Map column names to more descriptive names for legends
+# Map column names to more descriptive names for legends
 bl_legend_labels = ['BL (50d)', 'BL (80d)', 'BL (100d)', 'BL (120d)', 'BL (150d)']
 mv_legend_labels = ['MV (50d)', 'MV (80d)', 'MV (100d)', 'MV (120d)', 'MV (150d)']
 
 # Custom labels for "Other" columns (this can be edited)
 other_legend_labels = ['EQW: Eqaul-Weighted', 'DJIA: Dow Jones', 'SPY: S&P500']  # Customize these labels as needed
 
-# 6. Function to Plot with Intensity Control (by RGB variation)
 def plot_group(columns, base_color, legend_labels=None):
     for i, col in enumerate(columns):
         if isinstance(base_color, str):  # If the color is a string like 'gray', no intensity adjustment
@@ -927,36 +684,76 @@ def plot_group(columns, base_color, legend_labels=None):
                 linestyle='-', 
                 linewidth=1.5)
 
-# 7. Plot Groups with Renamed Legends
 plot_group(other_columns, other_color, legend_labels=other_legend_labels)  # Custom labels for 'Other' models
 plot_group(mv_columns, mv_color_base, legend_labels=mv_legend_labels)  # Dark Green to Light Green
 plot_group(bl_columns, bl_color_base, legend_labels=bl_legend_labels)  # Dark Red to Light Red
 
-# 8. Customize Plot Aesthetics
+# Customize Plot Aesthetics
 ax.set_title('Cumulative Returns (Log Scale) of Models and Benchmark Indices', fontsize=40)
 ax.set_xlabel('Date', fontsize=35)
 ax.set_ylabel('Cumulative Return (%)', fontsize=35)  # Increased font size for y-axis label
 ax.legend(fontsize=30, loc='upper left')
 
-# 9. Customize Y-Axis to Show Percentage
 ticks = ax.get_yticks()
 ax.set_yticklabels([f'{(np.exp(tick)-1)*100:.1f}%' for tick in ticks])
 
-# 10. Increase Font Size for Y-axis Ticks
 ax.tick_params(axis='x', labelsize=28)  # Make y-axis tick labels larger
 ax.tick_params(axis='y', labelsize=28)  # Make y-axis tick labels larger
 
-# 11. Enable Minor Gridlines
 ax.minorticks_on()  # Enable minor ticks
 ax.grid(which='major', color='#CCCCCC', linestyle='--')  # Major grid
 ax.grid(which='minor', color='#CCCCCC', linestyle=':')  # Minor grid
 fig.tight_layout()
 
 
-plt.savefig('SPY_cumulative_returns_plot.eps', format='eps')
-
-# 12. Show Plot
+plt.savefig('cumulative_returns_plot.eps', format='eps')
 plt.show()
 
 
+### Turnover Rate Analysis
 
+class PortfolioTurnover:
+    def __init__(self, portfolio_data: pd.DataFrame):
+        self.portfolio_data = portfolio_data
+        self.turnover = self.compute_turnover(portfolio_data)
+        self.avg_turnover = self.turnover[self.turnover != 0].mean()
+
+    def compute_turnover(self, weights: pd.DataFrame) -> pd.Series:
+        """Compute the turnover rate for a portfolio."""
+        return weights.diff().abs().sum(axis=1) / 2
+
+    def plot_turnover_rate(self, filename='turnover_rate_plot.eps'):
+        """Plot the turnover rate with average turnover line."""
+        fig, ax = plt.subplots(figsize=(24, 12))
+        
+        # Plot the turnover rate
+        ax.plot(self.turnover.index, self.turnover, label='Turnover Rate', color='royalblue', linewidth=1.5)
+        
+        # Add average turnover line
+        ax.axhline(self.avg_turnover, color='firebrick', linestyle='--', linewidth=2, label=f'Average Turnover: {self.avg_turnover:.4f}')
+        
+        # Customize plot aesthetics
+        ax.set_title('Portfolio Turnover Rate Over Time', fontsize=40)
+        ax.set_xlabel('Date', fontsize=35)
+        ax.set_ylabel('Turnover Rate', fontsize=35)
+        ax.legend(fontsize=30, loc='upper left')
+        
+        ticks = ax.get_yticks()
+        ax.set_yticklabels([f'{tick*100:.1f}%' for tick in ticks])
+        ax.tick_params(axis='x', labelsize=28)
+        ax.tick_params(axis='y', labelsize=28)
+        ax.minorticks_on()  # Enable minor ticks
+        ax.grid(which='major', color='#CCCCCC', linestyle='--')  # Major grid
+        ax.grid(which='minor', color='#CCCCCC', linestyle=':')  # Minor grid
+        
+        # Tight layout for better spacing
+        fig.tight_layout()
+
+        # Save and show the plot
+        plt.savefig(filename, format='eps')
+        plt.show()
+
+# Usage example:
+# Given `allocation[2][2]` is a DataFrame containing portfolio weights
+portfolio = PortfolioTurnover(allocation[2][2])  # Initialize with the portfolio data
+portfolio.plot_turnover_rate('turnover_rate_plot.eps')  # Plot and save as EPS
