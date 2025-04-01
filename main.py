@@ -1,27 +1,26 @@
 import yfinance as yf
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import matplotlib
+import matplotlib.pyplot as plt
 import gurobipy as gp
 import ta
 import quantstats as qs
-from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
-from sklearn.metrics import mean_squared_error
 import warnings
+from datetime import datetime
+
+
+
+# Suppress specific FutureWarnings and other non-critical messages
 warnings.filterwarnings("ignore", category=FutureWarning, module="numpy")
 warnings.filterwarnings("ignore", category=FutureWarning, module="quantstats")
 warnings.filterwarnings("ignore", message="dropping on a non-lexsorted multi-index")
-warnings.filterwarnings("ignore", category=FutureWarning, message=".*Series.__setitem__.*")
-
 pd.set_option('future.no_silent_downcasting', True)
 
-
-
-benchmark = ['^DJI','SPY']
-dji_components = {
+# Define benchmark symbols and historical components for the Dow Jones Industrial Average
+benchmarks = ['^DJI', 'SPY']
+dow_jones_components = {
     # Historical components of the Dow Jones Industrial Average: https://en.wikipedia.org/wiki/Historical_components_of_the_Dow_Jones_Industrial_Average
     "1991-05-06": ["AA", "AXP", "BA", "CAT", "CVX", "DD", "DIS", "FL", "GE", "GT", "HON", "IBM", "IP", "JPM", "KO", "MCD", "MMM", "MO", "MRK", "PG", "T", "XOM"],
     #add "HPQ", "JNJ", "TRV", "WMT"; remove "FL"
@@ -54,7 +53,7 @@ dji_components = {
     #Non-existing or Inaccessible stock data
     "Removed" : ["BS", 'CRM', 'DOW', 'DWDP', "EK", 'GM', "KHC", 'S', 'SBC', "TX", 'UK', 'UTX', 'V', "WX"],
 }
-sp_components = {
+spdr_components = {
     "1998-12-22": ['XLB', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY'],
     #add "XLRE"
     "2015-10-08": ['XLB', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLU', 'XLV', 'XLY', 'XLRE'],
@@ -67,695 +66,449 @@ sp_components = {
 }
 
 
-# SPDR/DJIA Dataset
-_components = dji_components
-_update_date = list(_components.keys())[:-2]
-stocks = sorted(_components["Union"])
+# Select (1).DJIA or (2).SPDR components for the dataset
+components = dow_jones_components
+update_dates = list(components.keys())[:-2]  # Exclude "Union" and "Removed"
+stock_list = sorted(components["Union"])
 
-# Start-End date
-data_start = '1991-01-01'
-decision_start = '1994-01-01'
-end = '2024-02-25'
+# Define date ranges
+data_start_date = '1991-01-01'
+decision_start_date = '1994-01-01'
+end_date = '2024-02-25'
 
-# Global Samples
-Gprice_data_cp = yf.download(stocks,start=data_start,end=end, auto_adjust=False)
+# Download complete price data for stocks
+global_price_data = yf.download(stock_list, start=data_start_date, end=end_date, auto_adjust=False)
 
-data = pd.DataFrame()
-# Fetch the data for each stock and concatenate it to the `data` DataFrame
-for stock in stocks:
-    raw = yf.download(stock, start=decision_start, end=end, auto_adjust=False)
-    print(f'{stock} start from {raw.index[0]}')
-    raw['Symbol'] = stock  # Add a column indicating the stock symbol
-    data = pd.concat([data, raw], axis=0)
-pivoted_data = data.pivot_table(index='Date', columns='Symbol', values='Adj Close').loc[decision_start:]
-pivoted_data.columns = pivoted_data.columns.droplevel() #drop multi-level
-df = pivoted_data
-df_returns = df.pct_change().iloc[1:]
-df = df.loc[df_returns.index]
+# Download decision price data and concatenate for each stock
+raw_data = pd.DataFrame()
+for stock in stock_list:
+    stock_data = yf.download(stock, start=decision_start_date, end=end_date, auto_adjust=False)
+    print(f'{stock} start from {stock_data.index[0]}')
+    stock_data['Symbol'] = stock
+    raw_data = pd.concat([raw_data, stock_data], axis=0)
 
-# 
-bdata = pd.DataFrame()
-for bm in benchmark:
-    braw = yf.download(bm, start=df.index[0], end=df.index[-1], auto_adjust=False)
-    braw['Symbol'] = bm  # Add a column indicating the stock symbol
-    bdata = pd.concat([bdata, braw], axis=0)
-bpivoted_data = bdata.pivot_table(index='Date', columns='Symbol', values='Adj Close').loc[decision_start:]
-bpivoted_data.columns = bpivoted_data.columns.droplevel() #drop multi-level
-bdf = bpivoted_data
+# Pivot the data to have dates as index and stock symbols as columns (using Adjusted Close)
+price_data = raw_data.pivot_table(index='Date', columns='Symbol', values='Adj Close').loc[decision_start_date:]
+price_data.columns = price_data.columns.droplevel()  # Remove multi-level index
+returns_data = price_data.pct_change().iloc[1:]
+price_data = price_data.loc[returns_data.index]
 
-bdf_returns = bdf.pct_change().iloc[1:]
-bdf = bdf.loc[bdf_returns.index]
+# Download benchmark data similarly
+benchmark_raw = pd.DataFrame()
+for benchmark_symbol in benchmarks:
+    bench_data = yf.download(benchmark_symbol, start=price_data.index[0], end=price_data.index[-1], auto_adjust=False)
+    bench_data['Symbol'] = benchmark_symbol
+    benchmark_raw = pd.concat([benchmark_raw, bench_data], axis=0)
+benchmark_price_data = benchmark_raw.pivot_table(index='Date', columns='Symbol', values='Adj Close').loc[decision_start_date:]
+benchmark_price_data.columns = benchmark_price_data.columns.droplevel()
+benchmark_data = benchmark_price_data.copy()
+benchmark_returns_data = benchmark_data.pct_change().iloc[1:]
+benchmark_data = benchmark_data.loc[benchmark_returns_data.index]
 
-
+# Plot cumulative returns for stocks and benchmarks
 fig, ax = plt.subplots(figsize=(20, 8))
-(1+df_returns).cumprod().plot(ax=ax)
-(1+bdf_returns).cumprod().plot(ax=ax)
-leg = ax.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=10, title='Stocks')
-plt.setp(leg.get_title(), fontsize=12) # Set legend title fontsize
-ax.set_xlabel('Time', fontsize=12) # Adjust x-axis label fontsize
-ax.set_ylabel('Cumulative Returns', fontsize=12) # Adjust y-axis label fontsize
-ax.tick_params(axis='both', which='major', labelsize=10) # Adjust tick label fontsize
-plt.tight_layout(rect=[0, 0, 0.75, 1]) # Adjust layout to make room for legend
+(1 + returns_data).cumprod().plot(ax=ax)
+(1 + benchmark_returns_data).cumprod().plot(ax=ax)
+legend = ax.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=10, title='Assets')
+plt.setp(legend.get_title(), fontsize=12)
+ax.set_xlabel('Time', fontsize=12)
+ax.set_ylabel('Cumulative Returns', fontsize=12)
+ax.tick_params(axis='both', which='major', labelsize=10)
+plt.tight_layout(rect=[0, 0, 0.75, 1])
 plt.show()
 
-
-def equalweighting(df_returns, exclude):
-    # Get the assets by excluding the specified column
-    assets = df_returns.columns[df_returns.columns != exclude]
-    # Calculate equal weights for the assets
-    weights = np.array([1/len(assets)]*len(assets))
-
-    # Calculate and add the portfolio returns to df_returns
-    strategy = df_returns
-    strategy['portfolio'] = df_returns[assets].mul(weights, axis=1).sum(axis=1)
-    return strategy
-eqw = [equalweighting(df_returns.copy(), None)]
-
-def plot_performance(strategy_list=None, portfolio='portfolio', variant=None):
-    # Plot cumulative returns
-    fig, ax = plt.subplots()
-    
-    BM = bdf.loc[strategy_list[0][1].sum(1)>0]
-    (BM/BM.iloc[0]).plot(ax=ax)
-    
-    if strategy_list!=None:
-        (1+eqw[0]['portfolio'][strategy_list[0][1].sum(1)>0][1:]).cumprod().plot(ax=ax, label='equal_weight')
-        for i, strategy in enumerate(strategy_list):
-            (1+strategy[0][portfolio][strategy_list[0][1].sum(1)>0]).cumprod().plot(ax=ax, label=f'BL {i+1}')
-            if(variant != None):
-                for var in variant:
-                    (1+strategy[0][var][strategy_list[0][1].sum(1)>0]).cumprod().plot(ax=ax, label=f'MV {i+1}')
-    else:
-        (1+eqw[0][portfolio]).cumprod().plot(ax=ax, label='equal_weight')
-    ax.set_title('Cumulative Returns')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Cumulative Returns')
-    ax.legend()
-    plt.show()
-    return None
-    
-def plot_arrays(index, *arrays, labels=None, title='Plot', xlabel='Index', ylabel='Values'):
+def equal_weighting_portfolio(returns_df, exclude_asset):
     """
-    Plots multiple arrays against a shared index.
+    Compute equal-weighted portfolio returns excluding a specified asset.
     """
-    plt.figure(figsize=(10, 6))
-    for i, array in enumerate(arrays):
-        plt.plot(index, array, label=labels[i] if labels else f'Array {i+1}')
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.legend()
-    plt.show()
+    assets = returns_df.columns[returns_df.columns != exclude_asset]
+    weights = np.array([1/len(assets)] * len(assets))
+    strategy_returns = returns_df.copy()
+    strategy_returns['portfolio'] = returns_df[assets].mul(weights, axis=1).sum(axis=1)
+    return strategy_returns
 
-# plot_arrays(R_index, array1, array2, array3, labels=['Array 1', 'Array 2', 'Array 3'])
+# Example equal-weighted strategy (exclude_asset is None, so all assets are included)
+equal_weighting_strategy = [equal_weighting_portfolio(returns_data.copy(), None)]
 
+# Define the number of technical indicators used
+NUM_INDICATORS = 9
 
+def compute_technical_indicators(stock_df, stock_label=''):
+    """
+    Compute a set of technical indicators for a given stock's price data.
+    Returns a DataFrame with the computed indicators.
+    """
+    stock_df = stock_df.dropna()
+    # Standard technical indicators
+    atr = ta.volatility.AverageTrueRange(high=stock_df['High'],
+                                         low=stock_df['Low'],
+                                         close=stock_df['Close']).average_true_range()
+    adx = ta.trend.ADXIndicator(high=stock_df['High'],
+                                low=stock_df['Low'],
+                                close=stock_df['Close']).adx()
+    ema = ta.trend.EMAIndicator(close=stock_df['Adj Close']).ema_indicator()
+    macd = ta.trend.MACD(close=stock_df['Adj Close']).macd()
+    sma = ta.trend.SMAIndicator(close=stock_df['Adj Close'], window=20).sma_indicator()
+    rsi = ta.momentum.RSIIndicator(close=stock_df['Adj Close']).rsi()
 
-def plot_allocation_professional(df_weights):
-    df_weights = df_weights.fillna(0).ffill()
-    df_weights[df_weights < 0] = 0
+    # Additional indicators
+    bollinger = ta.volatility.BollingerBands(close=stock_df['Close'])
+    obv = ta.volume.OnBalanceVolumeIndicator(close=stock_df['Close'], volume=stock_df['Volume']).on_balance_volume()
+    obv_normalized = obv / (obv.max() - obv.min())
 
-    # Define a fixed order and color for each asset (ticker)
-    ordered_assets = [
-        'XLY', 'XLV', 'XLU', 'XLRE', 'XLP',
-        'XLK', 'XLI', 'XLF', 'XLE', 'XLC', 'XLB'
-    ]
-
-    color_dict = {
-        'XLY': '#1f77b4',  # blue
-        'XLV': '#ff7f0e',  # orange
-        'XLU': '#2ca02c',  # green
-        'XLRE': '#d62728', # red
-        'XLP': '#9467bd',  # purple
-        'XLK': '#8c564b',  # brown
-        'XLI': '#e377c2',  # pink
-        'XLF': '#7f7f7f',  # gray
-        'XLE': '#bcbd22',  # yellow-green
-        'XLC': '#17becf',  # cyan
-        'XLB': '#aec7e8',  # light blue
-    }
-
-    # Filter and reorder dataframe based on fixed asset list
-    df_weights = df_weights[[a for a in ordered_assets if a in df_weights.columns]]
-
-    # Prepare colors in the right order
-    colors = [color_dict[a] for a in df_weights.columns]
-
-    # Plotting
-    fig, ax = plt.subplots(figsize=(20, 10), dpi=300)
-    df_weights.plot.area(ax=ax, color=colors, linewidth=0)
-
-    # Formatting
-    ax.set_xlabel('Date', fontsize=30)
-    ax.set_ylabel('Portfolio Weight', fontsize=30)
-    ax.set_title('Asset Allocation Over Time', fontsize=35)
-
-    # Time axis formatting
-    ax.xaxis.set_major_locator(mdates.YearLocator(2))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-    #ax.tick_params(axis='x', rotation=45)
-    ax.tick_params(axis='x', labelsize=22)  # Make y-axis tick labels larger
-    ax.tick_params(axis='y', labelsize=22)  # Make y-axis tick labels larger
-
-    # Y-axis and grid
-    ax.set_ylim(0, 1)
-    ax.yaxis.set_major_locator(plt.MultipleLocator(0.2))
-    ax.grid(axis='y', linestyle='--', linewidth=0.5)
-
-    # Legend
-    ax.legend(bbox_to_anchor=(1.01, 1), loc='upper left', fontsize=22)
-
-    plt.tight_layout()
-    plt.savefig('asset_allocation_plot.eps', format='eps')
-    plt.show()
-
-from gurobi_optimods.datasets import load_sharpe_ratio
-from gurobi_optimods.sharpe_ratio import max_sharpe_ratio
-from multiprocessing import Pool
-from multiprocessing import cpu_count
-
-p = 9                # number of indicators
-
-def calculate_indicators(stock_data, stock_name=''):
-    stock_data = stock_data.dropna()
-    
-    # Existing Indicators
-    atr = ta.volatility.AverageTrueRange(high=stock_data['High'], low=stock_data['Low'], close=stock_data['Close']).average_true_range()
-    adx = ta.trend.ADXIndicator(high=stock_data['High'], low=stock_data['Low'], close=stock_data['Close']).adx()
-    ema = ta.trend.EMAIndicator(close=stock_data['Adj Close']).ema_indicator()
-    macd = ta.trend.MACD(close=stock_data['Adj Close']).macd()
-    sma = ta.trend.SMAIndicator(close=stock_data['Adj Close'], window=20).sma_indicator()
-    rsi = ta.momentum.RSIIndicator(close=stock_data['Adj Close']).rsi()
-
-    # Additional Indicators
-    bb = ta.volatility.BollingerBands(close=stock_data['Close'])
-    stoch = ta.momentum.StochasticOscillator(high=stock_data['High'], low=stock_data['Low'], close=stock_data['Close'])
-    cci = ta.trend.CCIIndicator(high=stock_data['High'], low=stock_data['Low'], close=stock_data['Close'])
-    psar = ta.trend.PSARIndicator(high=stock_data['High'], low=stock_data['Low'], close=stock_data['Close'])
-    obv = ta.volume.OnBalanceVolumeIndicator(close=stock_data['Close'], volume=stock_data['Volume']).on_balance_volume()
-    obv_norm = obv / (obv.max() - obv.min())
-
-    # Combining all indicators into a single DataFrame
-    tag = f"_{stock_name}" if stock_name else ""  # Handling the case where stock_name might be empty
-    indicators_df = pd.DataFrame({
-        f'ATR{tag}': atr,                           #Diverse
-        f'ADX{tag}': adx,
-        f'EMA{tag}': ema,
-        f'MACD{tag}': macd,
-        f'SMA{tag}': sma,
-        f'RSI{tag}': rsi,                           #Diverse
-        f'BB_Upper{tag}': bb.bollinger_hband(),     #Diverse
-        f'BB_Lower{tag}': bb.bollinger_lband(),     #Diverse
-        #f'BB_MAVG{tag}': bb.bollinger_mavg(),
-        #f'STOCH_K{tag}': stoch.stoch(),
-        #f'STOCH_D{tag}': stoch.stoch_signal(),
-        #f'CCI{tag}': cci.cci(),
-        #f'PSAR{tag}': psar.psar(),
-        f'OBV_Norm{tag}' : obv_norm                 #Diverse
+    label_suffix = f"_{stock_label}" if stock_label else ""
+    indicators = pd.DataFrame({
+        f'ATR{label_suffix}': atr,
+        f'ADX{label_suffix}': adx,
+        f'EMA{label_suffix}': ema,
+        f'MACD{label_suffix}': macd,
+        f'SMA{label_suffix}': sma,
+        f'RSI{label_suffix}': rsi,
+        f'BB_Upper{label_suffix}': bollinger.bollinger_hband(),
+        f'BB_Lower{label_suffix}': bollinger.bollinger_lband(),
+        f'OBV_Norm{label_suffix}': obv_normalized
     })
 
-    indicators_df = indicators_df.dropna() # drop nan
-    indicators_df = indicators_df.loc[(indicators_df!=0).all(axis=1)] # drop 0
+    indicators = indicators.dropna()
+    indicators = indicators.loc[(indicators != 0).all(axis=1)]
+    return indicators
 
-    return indicators_df
+# Compute technical indicators for each stock and combine them into a global indicator DataFrame
+indicator_samples = []
+for stock in stock_list:
+    stock_indicators = compute_technical_indicators(global_price_data.xs(stock, axis=1, level=1), stock_label=stock)
+    indicator_samples.append(stock_indicators)
+global_indicators = pd.concat(indicator_samples, axis=1, keys=stock_list)
 
-Sample_Set = [calculate_indicators(Gprice_data_cp.xs(stocks[0], axis=1, level=1),stock_name=f'{stocks[0]}')]
-for j in range(1, len(stocks)):
-    Sample_Set.append( calculate_indicators(Gprice_data_cp.xs(stocks[j], axis=1, level=1), stock_name=f'{stocks[j]}') )
-Gx = pd.concat(Sample_Set, axis=1, keys=stocks)
-
-##############################################################################################
-
-from statsmodels.tsa.arima.model import ARIMA
-
-def one_stock_SVR(price_data_cp, X,  name):
-    stock_data_train = price_data_cp.xs(name, axis=1, level=1)
-    
-    #X_train_raw = calculate_indicators(stock_data_train) #Replace with the following:
-    X_train_raw = X[name]
-    Y_train_raw = price_data_cp['Adj Close'][name]
-    
-    # Probably don't need this anymore (avoid bad sample):
+def estimate_svr_parameters(price_data, features, stock_name):
+    """
+    Estimate regression parameters for one stock using Support Vector Regression.
+    Returns the model weights, intercept, and variance of the training features.
+    """
+    X_train_raw = features[stock_name]
+    Y_train_raw = price_data['Adj Close'][stock_name]
     X_train = X_train_raw.dropna()
     Y_train = Y_train_raw.loc[X_train.index]
     
-    svr = SVR(kernel='linear')
-    svr.fit(X_train, Y_train)
+    svr_model = SVR(kernel='linear')
+    svr_model.fit(X_train, Y_train)
     
-    # Model Parameter
-    #weights = [estimator.coef_ for estimator in svr.estimators_]
-    #intercepts = [estimator.intercept_ for estimator in svr.estimators_]
-    weights = svr.coef_
-    intercepts = svr.intercept_
-    # Converting weights and intercepts into a matrix and a vector respectively
-    weights = np.vstack(weights)  # Stacking weights vertically to form a matrix
-
-    variance = np.var(X_train, axis = 0).values
+    weights = np.vstack(svr_model.coef_)
+    intercepts = svr_model.intercept_
+    variance = np.var(X_train, axis=0).values
     return weights, intercepts, variance
 
-def arima_prediction(R, order=(2, 1, 2)) -> np.ndarray:
-    predictions = []
-    errors = []
-
-    for column in R.columns:
-        with warnings.catch_warnings():
-            # Ignore all warnings during the ARIMA model fitting
-            warnings.simplefilter("ignore")
-            
-            # Fit ARIMA model to the column
-            model = ARIMA(R[column].values, order=order)
-            fitted_model = model.fit()
-    
-            # Forecast the next value
-            forecast = fitted_model.forecast(steps=1)
-            predictions.append(forecast[0])
-    
-            # Calculate prediction error using mean squared error on training data
-            fitted_values = fitted_model.fittedvalues
-            mse = mean_squared_error(R[column][1:], fitted_values[1:])  # Skip the first element to align
-            errors.append(mse)
-        
-    q = predictions
-    Omega = np.diag(errors)
-    return q, Omega
-
-def rolling_train(R, X, trstart, trend):
-    n = len(R.index)
-    d = len(R.columns)
-    # SVR and Bandwidth matrix
-    B = np.zeros((d, d*p))
-    a = np.zeros(d)
-    
-    h = (4/(d*p+2))**(2/(d*p+4)) * n**(-2/(d*p+4))
-    h_list = np.array([])
-    H_Tilde = np.zeros((d*p,d*p))
-    price_data_cp = (Gprice_data_cp.loc[:, (slice(None), list(R.columns))])[trstart:trend]
-    for j, name in enumerate(R.columns):
-        weights, intercepts, var = one_stock_SVR(price_data_cp, X, name)
-        B[j][p*j:p*(j+1)] = weights
-        a[j] = intercepts[0]
-        h_list = np.append(h_list, h*var)
-    #print(f"{d} SVR")
-    #print(trend)
-    H_Tilde = np.diag(h_list)
-    Lambda = B @ H_Tilde @ B.T
-    
-    return Lambda, B, a
-
-def feature_regression(R: pd.DataFrame, X: pd.DataFrame) -> tuple:
+def perform_rolling_training(returns_df, features, train_start, train_end):
     """
-    Performs linear regression for each asset in R on its corresponding features in X.
-    Returns intercepts, coefficients, and the error covariance matrix.
-    
-    Parameters:
-        R (pd.DataFrame): DataFrame of dependent variables (e.g., asset returns).
-        X (pd.DataFrame): DataFrame of asset-specific features (exogenous variables).
-        
-    Returns:
-        tuple: Three items:
-            - intercepts: pd.Series of intercepts for each asset.
-            - coefficients: np.ndarray containing coefficients for each asset's features.
-            - Lambda: np.ndarray diagonal error covariance matrix.
+    Perform rolling training to estimate regression parameters and uncertainty.
+    Returns the uncertainty matrix, regression weights matrix, and intercept vector.
     """
-    intercepts = {}
-    coefficients = {}
-    residual_variances = []
+    n = len(returns_df.index)
+    d = len(returns_df.columns)
+    regression_weights = np.zeros((d, d * NUM_INDICATORS))
+    intercept_vector = np.zeros(d)
     
-    p = X.shape[1] // len(R.columns)  # Number of features per asset
+    h_factor = (4 / (d * NUM_INDICATORS + 2))**(2 / (d * NUM_INDICATORS + 4)) * n**(-2 / (d * NUM_INDICATORS + 4))
+    h_values = np.array([])
+    price_data_window = global_price_data.loc[train_start:train_end, (slice(None), list(returns_df.columns))]
     
-    # Iterate over each asset (column) in R
-    for asset in R.columns:
-        # Select the subset of columns in X related to the current asset
-        x_asset = X[asset].dropna()
-        R_asset = R[asset][x_asset.index]
+    for j, stock in enumerate(returns_df.columns):
+        weights, intercepts, variance = estimate_svr_parameters(price_data_window, features, stock)
+        regression_weights[j, NUM_INDICATORS * j: NUM_INDICATORS * (j + 1)] = weights.flatten()
+        intercept_vector[j] = intercepts[0]
+        h_values = np.append(h_values, h_factor * variance)
         
-        # Set up the linear regression model
-        model = LinearRegression()
-        
-        # Fit the model to the asset-specific data
-        model.fit(x_asset, R_asset)
-        
-        # Calculate residuals and their variance
-        residuals = R_asset - model.predict(x_asset)
-        residual_variances.append(np.var(residuals, ddof=1))
-        
-        # Store the intercept and coefficients
-        intercepts[asset] = model.intercept_
-        coefficients[asset] = model.coef_
-        
-    # Create intercepts Series and coefficient matrix
-    a = pd.Series(intercepts)
-    B = np.zeros((len(R.columns), len(R.columns) * p))
-    for j, (asset, value) in enumerate(coefficients.items()):
-        B[j][p * j : p * (j + 1)] = value
-    
-    # Create the diagonal error covariance matrix
-    Lambda = np.diag(residual_variances)
-    
-    return a, B, Lambda
+    H_tilde = np.diag(h_values)
+    uncertainty_matrix = regression_weights @ H_tilde @ regression_weights.T
+    return uncertainty_matrix, regression_weights, intercept_vector
 
-
-def KL_sample(R):
-    #R = df_returns.iloc[0:n+1]     #first R
-    n = len(R.index)
-    tau = 1 # Bigger = focus on original MV
-    pi = R.mean().values
-    Sigma = R.cov().values
-    d = len(R.columns)
-    P = np.eye(d)           # portfolio weight
-    X = Gx[R.columns].loc[R.index]      # X: feature sample
-    x = Gx[R.columns].loc[R.index].pct_change().ffill().fillna(0)     # x: X derivatives
-    Pc = df[R.columns].loc[R.index]
+def compute_black_litterman_estimates(returns_df):
+    """
+    Compute the Black-Litterman adjusted mean and covariance estimates.
+    """
+    tau = 1
+    prior_mean = returns_df.mean().values
+    sample_covariance = returns_df.cov().values
+    d = len(returns_df.columns)
+    identity_matrix = np.eye(d)
+    features = global_indicators[returns_df.columns].loc[returns_df.index]
     
-    # SVR Kernel
-    Lambda_k, B_k, a_k = rolling_train(R, X, R.index[0], R.index[-1])
-    E_ft, V_ft = X.mean(), X.cov()
-    q_k = a_k + B_k @ E_ft
-    # q_k = (q_k - Pc.iloc[-1])/Pc.iloc[-1]
-    Sigma_f_k = B_k @ V_ft @ B_k.T
+    Lambda, B, intercepts = perform_rolling_training(returns_df, features, returns_df.index[0], returns_df.index[-1])
+    adjusted_covariance = sample_covariance + np.linalg.pinv(np.linalg.pinv(sample_covariance * tau) + identity_matrix.T @ np.linalg.pinv(Lambda) @ identity_matrix)
+    adjusted_mean = adjusted_covariance @ (np.linalg.pinv(sample_covariance * tau) @ prior_mean + identity_matrix.T @ np.linalg.pinv(Lambda) @ (intercepts + B @ features.mean()))
+    return adjusted_mean, adjusted_covariance
 
-    a, B, Xi = feature_regression(Pc, X)
-    E_ft, V_ft = X.mean(), X.cov()
-    Pct = a + B @ E_ft
-    q = (Pct - Pc.iloc[-1])/Pc.iloc[-1]
-    Sigma_f = B @ V_ft @ B.T
-    
-    Error_k = Lambda_k
-    variance_k = Sigma + np.linalg.pinv(np.linalg.pinv(Sigma*tau) + P.T @ np.linalg.pinv(Error_k) @ P)
-    mean_k = variance_k @ (np.linalg.pinv(Sigma*tau) @ pi + P.T @ np.linalg.pinv(Error_k) @ q_k)
-    
-    Uncertainty = Xi
-    variance = np.linalg.pinv(np.linalg.pinv(Sigma*tau) + P.T @ np.linalg.pinv(Uncertainty) @ P)
-    mean = variance @ (np.linalg.pinv(Sigma*tau) @ pi + P.T @ np.linalg.pinv(Uncertainty) @ q)
-    
-    return mean_k, variance_k
-
-
-
-def max_sharpe_MKW(R):
-    cov_matrix = R.cov().values
-    mean = R.mean().values
-    d = len(R.columns)
-    
-    mu = mean
-    Sigma = cov_matrix
-
-    #mu, Sigma = KL_sample(R)
+def optimize_mean_variance_portfolio(returns_df):
+    """
+    Solve the mean–variance (MV) portfolio optimization problem using Gurobi.
+    Returns the normalized portfolio weights.
+    """
+    covariance_matrix = returns_df.cov().values
+    expected_returns = returns_df.mean().values
+    d = len(returns_df.columns)
     
     with gp.Env(empty=True) as env:
         env.setParam('OutputFlag', 0)
         env.setParam('DualReductions', 0)
         env.start()
-        with gp.Model(env=env, name = "portfolio") as m:
-            # m.params.NonConvex = 2
-            # Long only
-            y = m.addMVar(d, name="y", lb = 0, ub = gp.GRB.INFINITY)
+        with gp.Model(env=env, name="mv_portfolio") as model:
+            weights_var = model.addMVar(d, name="weights", lb=0, ub=gp.GRB.INFINITY)
+            portfolio_return = weights_var @ expected_returns
+            portfolio_variance = weights_var @ covariance_matrix @ weights_var
             
-            exp_return = y @ mu #MAX Sharpe
-            variance = (y @ Sigma) @ y
-            
-            if np.all(mu < 0):
+            if np.all(expected_returns < 0):
                 return None
             else:
-                m.setObjective(variance, gp.GRB.MINIMIZE)  # Minimize variance
-                m.addConstr(exp_return == 1)  # Standard expected return constraint
+                model.setObjective(portfolio_variance, gp.GRB.MINIMIZE)
+                model.addConstr(portfolio_return == 1)
     
-            m.optimize()
-
-            # Check if the status is INF_OR_UNBD (code 4)
-            if m.status == gp.GRB.INF_OR_UNBD:
-                print("Model status is INF_OR_UNBD. Reoptimizing with DualReductions set to 0.")
-            
-            solution = None
-            # Check the optimization status
-            if m.status == gp.GRB.OPTIMAL:
-                # Extract solution
-                y_opt = y.X  # Retrieve the solution as a numpy array
-                solution = y_opt / y_opt.sum()
-
-            elif m.status == gp.GRB.INF_OR_UNBD:
+            model.optimize()
+            if model.status == gp.GRB.OPTIMAL:
+                optimal_weights = weights_var.X
+                normalized_weights = optimal_weights / optimal_weights.sum()
+            elif model.status == gp.GRB.INF_OR_UNBD:
                 print("Model is infeasible or unbounded.")
+                normalized_weights = None
             else:
-                print(f"Optimization ended with status: {m.status}")
-                
-            return solution
+                print(f"Optimization ended with status: {model.status}")
+                normalized_weights = None
+            return normalized_weights
 
-def max_sharpe_BL(R):   #Duplicate from max_sharpe_MKW() for multiprocessing purpose. Might be modified later.
-    cov_matrix = R.cov().values
-    mean = R.mean().values
-    d = len(R.columns)
-    mu, Sigma = KL_sample(R)
+def optimize_black_litterman_portfolio(returns_df):
+    """
+    Solve the Black-Litterman (BL) portfolio optimization problem using Gurobi.
+    Returns the normalized portfolio weights.
+    """
+    d = len(returns_df.columns)
+    bl_mean, bl_covariance = compute_black_litterman_estimates(returns_df)
     
     with gp.Env(empty=True) as env:
         env.setParam('OutputFlag', 0)
         env.setParam('DualReductions', 0)
         env.setParam('TimeLimit', 10)
         env.start()
-        with gp.Model(env=env, name="portfolio") as m:
-            # Long only constraint
-            y = m.addMVar(d, name="y", lb=0, ub=gp.GRB.INFINITY)
-    
-            # Objective and constraints
-            exp_return = y @ mu  # MAX Sharpe
-            variance = (y @ Sigma) @ y  # Variance
-    
-            # Check if all values in mu are negative
-            if np.all(mu < 0):
+        with gp.Model(env=env, name="bl_portfolio") as model:
+            weights_var = model.addMVar(d, name="weights", lb=0, ub=gp.GRB.INFINITY)
+            portfolio_return = weights_var @ bl_mean
+            portfolio_variance = weights_var @ bl_covariance @ weights_var
+            
+            if np.all(bl_mean < 0):
                 return None
             else:
-                m.setObjective(variance, gp.GRB.MINIMIZE)  # Minimize variance
-                m.addConstr(exp_return == 1)  # Standard expected return constraint
-            m.optimize()
-    
-            solution = None
-            # Check the optimization status
-            if m.status == gp.GRB.OPTIMAL:
-                # Extract solution
-                y_opt = y.X  # Retrieve the solution as a numpy array
-                solution = y_opt / y_opt.sum()
-
-            elif m.status == gp.GRB.INF_OR_UNBD:
+                model.setObjective(portfolio_variance, gp.GRB.MINIMIZE)
+                model.addConstr(portfolio_return == 1)
+            model.optimize()
+            if model.status == gp.GRB.OPTIMAL:
+                optimal_weights = weights_var.X
+                normalized_weights = optimal_weights / optimal_weights.sum()
+            elif model.status == gp.GRB.INF_OR_UNBD:
                 print("Model is infeasible or unbounded.")
+                normalized_weights = None
             else:
-                print(f"Optimization ended with status: {m.status}")
-                
-                                
-            return solution
+                print(f"Optimization ended with status: {model.status}")
+                normalized_weights = None
+            return normalized_weights
 
-##############################################################################################
-
-from datetime import datetime
-def BL(df, df_returns, lookback):
-    print(f'lookback = {lookback}')
-    rb_idx = df.groupby(df.index.strftime('%Y-%m')).head(1).index
-    rb_daily = df.index
-    #print(real_idx)
+def execute_portfolio_strategy(price_df, returns_df, lookback_period):
+    """
+    Execute portfolio optimization over a moving window defined by the lookback period.
+    Returns the strategy performance and computed portfolio weights for MV and BL models.
+    """
+    print(f'Running portfolio strategy with a lookback window of {lookback_period} days.')
+    monthly_rebalance_index = price_df.groupby(price_df.index.strftime('%Y-%m')).head(1).index
+    daily_dates = price_df.index
+    mv_weights = pd.DataFrame(index=price_df.index, columns=price_df.columns)
+    bl_weights = pd.DataFrame(index=price_df.index, columns=price_df.columns)
     
-    # Initialize an empty DataFrame to store the weights
-    weights_mv = pd.DataFrame(index=df.index, columns=df.columns)
-    weights_bl = pd.DataFrame(index=df.index, columns=df.columns)
+    strategy_returns = returns_df.copy()
+    strategy_returns['portfolio_mv'] = 0.0
+    strategy_returns['portfolio_bl'] = 0.0
     
-    strategy = df_returns.copy()
-    strategy['portfolio mv'] = pd.Series(index=df.index, data=0.0)
-    strategy['portfolio bl'] = pd.Series(index=df.index, data=0.0)
-
-
-    rb_data = []
-    # Loop over the rebalance dates
-    for rb_date in rb_daily:
-        rb_date_index = df.index.get_loc(rb_date)
-        if rb_date_index > lookback:
-            if rb_date in rb_idx:
-                rb_date_parsed = rb_date.to_pydatetime()
-                for date in sorted(_update_date, reverse=True):
-                    if datetime.strptime(date, "%Y-%m-%d") <= rb_date_parsed:
-                        _stocks = sorted(_components[date])
+    rebalance_info = []
+    # Identify rebalance dates and associated stock components
+    for current_date in daily_dates:
+        current_index = price_df.index.get_loc(current_date)
+        if current_index > lookback_period:
+            if current_date in monthly_rebalance_index:
+                current_date_parsed = current_date.to_pydatetime()
+                for update_date in sorted(update_dates, reverse=True):
+                    if datetime.strptime(update_date, "%Y-%m-%d") <= current_date_parsed:
+                        current_components = sorted(components[update_date])
                         break
-                rb_data.append((rb_date, rb_date_index, _stocks))
+                rebalance_info.append((current_date, current_index, current_components))
                 
-
-    GR_n = []
-    for rb in rb_data:
-        GR_n.append( df_returns[rb[2]].iloc[rb[1] - lookback:rb[1]].dropna(axis=1) )
+    window_returns_list = []
+    for info in rebalance_info:
+        window_returns = returns_df[info[2]].iloc[info[1] - lookback_period:info[1]].dropna(axis=1)
+        window_returns_list.append(window_returns)
     
-    print(f'GR_n: {len(GR_n)}')
+    for window_returns in window_returns_list:
+        decision_date = price_df.index[price_df.index.get_loc(window_returns.index[-1])]
+        print(f'Lookback = {lookback_period}. Decision made on {decision_date}:')
+        
+        mv_weights.loc[decision_date, window_returns.columns] = optimize_mean_variance_portfolio(window_returns)
+        mv_weights.loc[decision_date] = mv_weights.loc[decision_date].fillna(0)
+        
+        bl_weights.loc[decision_date, window_returns.columns] = optimize_black_litterman_portfolio(window_returns)
+        bl_weights.loc[decision_date] = bl_weights.loc[decision_date].fillna(0)
+        
+    mv_weights = mv_weights.ffill().fillna(0)
+    bl_weights = bl_weights.ffill().fillna(0)
     
-    for R_n in GR_n:
-        
-        #date = df.index[ df.index.get_loc(R_n.index[-1])+1 ]        
-        #print(f'Lookback = {lookback}. Decision after {R_n.index[-1]} is on {date}:')
-        
-        date = df.index[ df.index.get_loc(R_n.index[-1]) ]        
-        print(f'Lookback = {lookback}. Decision right after {date} is on {date}:')
-        
-        
-        weights_mv.loc[date, R_n.columns] = max_sharpe_MKW(R_n)
-        weights_mv.loc[date] = weights_mv.loc[date].fillna(0) # Elimiate NaN today to avoid ffill later.
-        
-        weights_bl.loc[date, R_n.columns] = max_sharpe_BL(R_n)
-        weights_bl.loc[date] = weights_bl.loc[date].fillna(0) # Elimiate NaN today to avoid ffill later.
-        
-    weights_mv = weights_mv.ffill().fillna(0)
-    weights_mv = weights_mv.infer_objects(copy=False)
-
-    weights_bl = weights_bl.ffill().fillna(0)
-    weights_bl = weights_bl.infer_objects(copy=False)
-
+    for idx in range(len(price_df) - 1):
+        current_date = price_df.index[idx]
+        next_date = price_df.index[idx + 1]
+        strategy_returns.loc[next_date, 'portfolio_mv'] = np.sum(mv_weights.loc[current_date] * returns_df.loc[next_date])
+        strategy_returns.loc[next_date, 'portfolio_bl'] = np.sum(bl_weights.loc[current_date] * returns_df.loc[next_date])
     
-    for date_index in range(len(df)-1):
-        bet_date = df.index[date_index]
-        R_date = df.index[date_index + 1]
-        strategy.loc[R_date, 'portfolio mv'] = np.sum(weights_mv.loc[bet_date] * df_returns.loc[R_date])
-        strategy.loc[R_date, 'portfolio bl'] = np.sum(weights_bl.loc[bet_date] * df_returns.loc[R_date])
+    return strategy_returns, mv_weights, bl_weights
+
+if __name__ == '__main__':
+    print('Starting portfolio optimization strategies.')
     
-    return strategy, weights_mv, weights_bl
+    # Execute portfolio strategies with different lookback periods
+    portfolio_allocations = [
+        execute_portfolio_strategy(price_data.copy(), returns_data.copy(), lookback_period=50),
+        execute_portfolio_strategy(price_data.copy(), returns_data.copy(), lookback_period=80),
+        # execute_portfolio_strategy(price_data.copy(), returns_data.copy(), lookback_period=100),
+        # execute_portfolio_strategy(price_data.copy(), returns_data.copy(), lookback_period=120),
+        # execute_portfolio_strategy(price_data.copy(), returns_data.copy(), lookback_period=150),
+    ]
 
+    # Define the portfolio variant and create the DataFrame for cumulative returns
+    portfolio = 'portfolio bl'
+    variant = ['portfolio mv']
 
-print('Allocation: ')
-allocation = [BL(df.copy(), df_returns.copy(), lookback = 50),
-              BL(df.copy(), df_returns.copy(), lookback = 80), 
-              BL(df.copy(), df_returns.copy(), lookback = 100), 
-              BL(df.copy(), df_returns.copy(), lookback = 120),
-              BL(df.copy(), df_returns.copy(), lookback = 150),
-              ]
+    # Initialize an empty DataFrame for the benchmark and portfolio performance
+    df_bl = pd.DataFrame()
 
-
-portfolio = 'portfolio bl'
-variant = ['portfolio mv']
-
-df_bl = pd.DataFrame()
-df_bl['EQW'] = eqw[0]['portfolio']
-for _benchmark in benchmark:
-    df_bl[_benchmark] = bdf_returns[_benchmark]
-for i, value in enumerate(allocation):
-    df_bl[f'MV {i+1}'] = value[0]['portfolio mv']
-    df_bl[f'BL {i+1}'] = value[0]['portfolio bl']
+    # Add the equal-weighted portfolio returns
+    df_bl['EQW'] = equal_weighting_portfolio(returns_data.copy(), None)['portfolio']
     
-(1+df_bl).cumprod().plot()
-# qs.reports.metrics(df_bl, mode="full", display=True)
-for col in df_bl.columns:
-    print(f"\n==== Metrics for {col} ====")
-    qs.reports.metrics(df_bl[col], mode="full", display=True)
-
-
+    # Add benchmark returns
+    for _benchmark in benchmarks:
+        df_bl[_benchmark] = benchmark_returns_data[_benchmark]
+    
+    # Add the returns for each portfolio optimization (MV and BL models)
+    for i, allocation in enumerate(portfolio_allocations):
+        df_bl[f'MV {i+1}'] = allocation[0]['portfolio_mv']
+        df_bl[f'BL {i+1}'] = allocation[0]['portfolio_bl']
+    
+    # Generate performance metrics report using QuantStats
+    qs.reports.metrics(df_bl, mode="full", display=True)
     
     
-### Academic Log-Scale Cumulative Plot
+    ### Academic Log-Scale Cumulative Plot
     
-# Prepare Data
-df_clean = df_bl.drop(columns=[]).fillna(0)
-log_cumulative_returns = np.log1p(df_clean).cumsum()
+    def plot_cumulative_returns(df_bl):
+        """
+        Plot the cumulative returns of portfolio models and benchmark indices on a log scale.
+        """
+        # Clean the dataframe
+        df_clean = df_bl.drop(columns=[]).fillna(0)
+        log_cumulative_returns = np.log1p(df_clean).cumsum()
 
-# Identify Columns by Group
-bl_columns = [col for col in log_cumulative_returns.columns if "BL" in col]
-mv_columns = [col for col in log_cumulative_returns.columns if "MV" in col]
-other_columns = [
-    col for col in log_cumulative_returns.columns 
-    if col not in bl_columns + mv_columns
-]
+        # Identify Columns by Group
+        bl_columns = [col for col in log_cumulative_returns.columns if "BL" in col]
+        mv_columns = [col for col in log_cumulative_returns.columns if "MV" in col]
+        other_columns = [
+            col for col in log_cumulative_returns.columns 
+            if col not in bl_columns + mv_columns
+        ]
 
-# Define Colors and Line Styles
-bl_color_base = (0.7, 0.0, 0.0)  # Dark Red (RGB)
-mv_color_base = (0.0, 0.7, 0.0)  # Dark Green (RGB)
-other_color = 'gray'  # Constant Gray for 'Other' models
+        # Define Colors and Line Styles
+        bl_color_base = (0.7, 0.0, 0.0)  # Dark Red (RGB)
+        mv_color_base = (0.0, 0.7, 0.0)  # Dark Green (RGB)
+        other_color = 'gray'  # Constant Gray for 'Other' models
 
-# Set Style
-plt.style.use('seaborn-v0_8-whitegrid')  # or any style from mpl.style.available
-fig, ax = plt.subplots(figsize=(22, 15))
+        # Set Style
+        plt.style.use('seaborn-v0_8-whitegrid')  # or any style from mpl.style.available
+        fig, ax = plt.subplots(figsize=(22, 15))
 
-# Map column names to more descriptive names for legends
-bl_legend_labels = ['BL (50d)', 'BL (80d)', 'BL (100d)', 'BL (120d)', 'BL (150d)']
-mv_legend_labels = ['MV (50d)', 'MV (80d)', 'MV (100d)', 'MV (120d)', 'MV (150d)']
+        # Map column names to more descriptive names for legends
+        bl_legend_labels = ['BL (50d)', 'BL (80d)', 'BL (100d)', 'BL (120d)', 'BL (150d)']
+        mv_legend_labels = ['MV (50d)', 'MV (80d)', 'MV (100d)', 'MV (120d)', 'MV (150d)']
 
-# Custom labels for "Other" columns (this can be edited)
-other_legend_labels = ['EQW: Eqaul-Weighted', 'DJIA: Dow Jones', 'SPY: S&P500']  # Customize these labels as needed
+        # Custom labels for "Other" columns (this can be edited)
+        other_legend_labels = ['EQW: Eqaul-Weighted', 'DJIA: Dow Jones', 'SPY: S&P500']  # Customize these labels as needed
 
-def plot_group(columns, base_color, legend_labels=None):
-    for i, col in enumerate(columns):
-        if isinstance(base_color, str):  # If the color is a string like 'gray', no intensity adjustment
-            color_with_intensity = base_color
-        else:  # If the color is a tuple (RGB), adjust intensity
-            # Adjust intensity by decreasing the RGB values
-            intensity = 1 - (i * 0.16)  # Decrease intensity for each subsequent line
-            color_with_intensity = tuple([c * intensity for c in base_color])  # Adjust the color intensity
-        label = legend_labels[i] if legend_labels else col
-        ax.plot(log_cumulative_returns.index, 
-                log_cumulative_returns[col], 
-                label=label, 
-                color=color_with_intensity,  # Use the adjusted color
-                linestyle='-', 
-                linewidth=1.5)
+        def plot_group(columns, base_color, legend_labels=None):
+            for i, col in enumerate(columns):
+                if isinstance(base_color, str):  # If the color is a string like 'gray', no intensity adjustment
+                    color_with_intensity = base_color
+                else:  # If the color is a tuple (RGB), adjust intensity
+                    # Adjust intensity by decreasing the RGB values
+                    intensity = 1 - (i * 0.16)  # Decrease intensity for each subsequent line
+                    color_with_intensity = tuple([c * intensity for c in base_color])  # Adjust the color intensity
+                label = legend_labels[i] if legend_labels else col
+                ax.plot(log_cumulative_returns.index, 
+                        log_cumulative_returns[col], 
+                        label=label, 
+                        color=color_with_intensity,  # Use the adjusted color
+                        linestyle='-', 
+                        linewidth=1.5)
 
-plot_group(other_columns, other_color, legend_labels=other_legend_labels)  # Custom labels for 'Other' models
-plot_group(mv_columns, mv_color_base, legend_labels=mv_legend_labels)  # Dark Green to Light Green
-plot_group(bl_columns, bl_color_base, legend_labels=bl_legend_labels)  # Dark Red to Light Red
+        plot_group(other_columns, other_color, legend_labels=other_legend_labels)  # Custom labels for 'Other' models
+        plot_group(mv_columns, mv_color_base, legend_labels=mv_legend_labels)  # Dark Green to Light Green
+        plot_group(bl_columns, bl_color_base, legend_labels=bl_legend_labels)  # Dark Red to Light Red
 
-# Customize Plot Aesthetics
-ax.set_title('Cumulative Returns (Log Scale) of Models and Benchmark Indices', fontsize=40)
-ax.set_xlabel('Date', fontsize=35)
-ax.set_ylabel('Cumulative Return (%)', fontsize=35)  # Increased font size for y-axis label
-ax.legend(fontsize=30, loc='upper left')
-
-ticks = ax.get_yticks()
-ax.set_yticklabels([f'{(np.exp(tick)-1)*100:.1f}%' for tick in ticks])
-
-ax.tick_params(axis='x', labelsize=28)  # Make y-axis tick labels larger
-ax.tick_params(axis='y', labelsize=28)  # Make y-axis tick labels larger
-
-ax.minorticks_on()  # Enable minor ticks
-ax.grid(which='major', color='#CCCCCC', linestyle='--')  # Major grid
-ax.grid(which='minor', color='#CCCCCC', linestyle=':')  # Minor grid
-fig.tight_layout()
-
-
-plt.savefig('cumulative_returns_plot.eps', format='eps')
-plt.show()
-
-
-### Turnover Rate Analysis
-
-class PortfolioTurnover:
-    def __init__(self, portfolio_data: pd.DataFrame):
-        self.portfolio_data = portfolio_data
-        self.turnover = self.compute_turnover(portfolio_data)
-        self.avg_turnover = self.turnover[self.turnover != 0].mean()
-
-    def compute_turnover(self, weights: pd.DataFrame) -> pd.Series:
-        """Compute the turnover rate for a portfolio."""
-        return weights.diff().abs().sum(axis=1) / 2
-
-    def plot_turnover_rate(self, filename='turnover_rate_plot.eps'):
-        """Plot the turnover rate with average turnover line."""
-        fig, ax = plt.subplots(figsize=(24, 12))
-        
-        # Plot the turnover rate
-        ax.plot(self.turnover.index, self.turnover, label='Turnover Rate', color='royalblue', linewidth=1.5)
-        
-        # Add average turnover line
-        ax.axhline(self.avg_turnover, color='firebrick', linestyle='--', linewidth=2, label=f'Average Turnover: {self.avg_turnover:.4f}')
-        
-        # Customize plot aesthetics
-        ax.set_title('Portfolio Turnover Rate Over Time', fontsize=40)
+        # Customize Plot Aesthetics
+        ax.set_title('Cumulative Returns (Log Scale) of Models and Benchmark Indices', fontsize=40)
         ax.set_xlabel('Date', fontsize=35)
-        ax.set_ylabel('Turnover Rate', fontsize=35)
+        ax.set_ylabel('Cumulative Return (%)', fontsize=35)  # Increased font size for y-axis label
         ax.legend(fontsize=30, loc='upper left')
-        
+
         ticks = ax.get_yticks()
-        ax.set_yticklabels([f'{tick*100:.1f}%' for tick in ticks])
-        ax.tick_params(axis='x', labelsize=28)
-        ax.tick_params(axis='y', labelsize=28)
+        ax.set_yticklabels([f'{(np.exp(tick)-1)*100:.1f}%' for tick in ticks])
+
+        ax.tick_params(axis='x', labelsize=28)  # Make y-axis tick labels larger
+        ax.tick_params(axis='y', labelsize=28)  # Make y-axis tick labels larger
+
         ax.minorticks_on()  # Enable minor ticks
         ax.grid(which='major', color='#CCCCCC', linestyle='--')  # Major grid
         ax.grid(which='minor', color='#CCCCCC', linestyle=':')  # Minor grid
-        
-        # Tight layout for better spacing
         fig.tight_layout()
 
-        # Save and show the plot
-        plt.savefig(filename, format='eps')
+        # Save and display the plot
+        plt.savefig('cumulative_returns_plot.eps', format='eps')
         plt.show()
 
-# Usage example:
-# Given `allocation[2][2]` is a DataFrame containing portfolio weights
-portfolio = PortfolioTurnover(allocation[2][2])  # Initialize with the portfolio data
-portfolio.plot_turnover_rate('turnover_rate_plot.eps')  # Plot and save as EPS
+    # Call the function to generate the log-scale cumulative plot
+    plot_cumulative_returns(df_bl)
+
+
+    ### Asset Allocation Plot
+
+    def plot_allocation(df_weights):
+        """
+        Plot the asset allocation over time with area charts.
+        """
+        # Fill missing values and remove negative allocations
+        df_weights = df_weights.fillna(0).ffill()
+        df_weights[df_weights < 0] = 0
+
+        # Use the stock list for distinct color mapping
+        d = len(stock_list)
+        colormap = matplotlib.colormaps['tab20c']
+        colors = [colormap(i / d) for i in range(d)[::-1]]
+
+        # Create an area plot of the allocations
+        fig, ax = plt.subplots(figsize=(20, 10), dpi=300)
+        df_weights.plot.area(ax=ax, color=colors)
+
+        ax.set_xlabel('Date')
+        ax.set_ylabel('Allocation')
+        ax.set_title('Asset Allocation Over Time')
+
+        # Place the legend outside the plot area
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(reversed(handles), reversed(labels), title='Assets', bbox_to_anchor=(1, 1), loc='upper left', fontsize='small')
+
+        plt.tight_layout()
+        plt.show()
+        return None
+
+    # Plot the allocations for both MV and BL models for each lookback period
+    for allocation in portfolio_allocations:
+        plot_allocation(allocation[1])  # Mean-Variance allocation
+        plot_allocation(allocation[2])  # Black-Litterman allocation
