@@ -1,0 +1,23 @@
+# MSCI World Index Configuration
+component_name: "MSCI_World_Index"
+data_start_date: "1991-01-01"
+decision_start_date: "1999-01-01"
+end_date: "2024-02-24"
+num_indicators: 9
+cache_dir: "data/yf_cache"
+lookbacks: [50, 80, 100, 120, 150]
+
+# Benchmarks
+benchmarks: ["^DJI", "SPY"]
+
+# MSCI World Index Components (ETFs)
+component:
+  "1996-03-18": ["EWA", "EWC", "EWD", "EWG", "EWH", "EWI", "EWJ", "EWK", "EWL", "EWN", "EWO", "EWP", "EWQ", "EWS", "EWU"]
+  "2008-03-28": ["EWA", "EWC", "EWD", "EWG", "EWH", "EWI", "EWJ", "EWK", "EWL", "EWN", "EWO", "EWP", "EWQ", "EWS", "EWU", "EIS"]
+  "2010-05-07": ["EWA", "EWC", "EWD", "EWG", "EWH", "EWI", "EWJ", "EWK", "EWL", "EWN", "EWO", "EWP", "EWQ", "EWS", "EWU", "EIS", "EUSA"]
+  "2010-09-02": ["EWA", "EWC", "EWD", "EWG", "EWH", "EWI", "EWJ", "EWK", "EWL", "EWN", "EWO", "EWP", "EWQ", "EWS", "EWU", "EIS", "EUSA", "ENZL"]
+  "2012-01-24": ["EWA", "EWC", "EWD", "EWG", "EWH", "EWI", "EWJ", "EWK", "EWL", "EWN", "EWO", "EWP", "EWQ", "EWS", "EWU", "EIS", "EUSA", "ENZL", "ENOR"]
+  "2012-01-26": ["EWA", "EWC", "EWD", "EWG", "EWH", "EWI", "EWJ", "EWK", "EWL", "EWN", "EWO", "EWP", "EWQ", "EWS", "EWU", "EIS", "EUSA", "ENZL", "ENOR", "EFNL", "EDEN"]
+  "2013-11-12": ["EWA", "EWC", "EWD", "EWG", "EWH", "EWI", "EWJ", "EWK", "EWL", "EWN", "EWO", "EWP", "EWQ", "EWS", "EWU", "EIS", "EUSA", "ENZL", "ENOR", "EFNL", "EDEN", "PGAL"]
+  Union: ["EWA", "EWC", "EWD", "EWG", "EWH", "EWI", "EWJ", "EWK", "EWL", "EWN", "EWO", "EWP", "EWQ", "EWS", "EWU", "EIS", "EUSA", "ENZL", "ENOR", "EFNL", "EDEN", "PGAL"]
+  Removed: ["Greece"]

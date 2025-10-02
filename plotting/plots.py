@@ -94,8 +94,12 @@ def plot_cumulative_returns(df_ret: pd.DataFrame, save_path: str = 'cumulative_r
             lab = (labels[i] if labels and i < len(labels) else c)
             ax.plot(log_cum.index, log_cum[c], label=lab, color=col, linestyle='-', linewidth=1.5)
 
-    # 依舊版預設的順序與標籤
-    plot_group(other_cols, 'gray', labels=['EQW', 'DJIA', 'SPY'])
+    # 依舊版預設的順序與標籤，但 EQW 使用獨特顏色
+    eqw_cols = [c for c in other_cols if 'EQW' in c]
+    benchmark_cols = [c for c in other_cols if c not in eqw_cols]
+    
+    plot_group(eqw_cols, 'blue', labels=['EQW'])
+    plot_group(benchmark_cols, 'gray', labels=['DJIA', 'SPY'])
     plot_group(mv_cols, (0.0, 0.7, 0.0), labels=['MV (50d)', 'MV (80d)', 'MV (100d)', 'MV (120d)', 'MV (150d)'])
     plot_group(bl_cols, (0.7, 0.0, 0.0), labels=['BL (50d)', 'BL (80d)', 'BL (100d)', 'BL (120d)', 'BL (150d)'])
 

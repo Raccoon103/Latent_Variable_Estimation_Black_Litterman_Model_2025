@@ -18,7 +18,9 @@ This refactor modularizes your single-file script into a small package and adds 
 
 ```bash
 pip install -r requirements.txt
-python main.py
+python main.py --config config_dow_jones.yaml
+python main.py --config config_spdr.yaml
+python main.py --config config_msci_world.yaml
 ```
 
 The first run will populate `./data/yf_cache/*.parquet`. Later runs will only fetch new data after the last cached date.

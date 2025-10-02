@@ -1,0 +1,19 @@
+# SPDR ETF Configuration
+component_name: "SPDR"
+data_start_date: "1991-01-01"
+decision_start_date: "1994-01-01"
+end_date: "2024-02-24"
+num_indicators: 9
+cache_dir: "data/yf_cache"
+lookbacks: [50, 80, 100, 120, 150]
+
+# Benchmarks
+benchmarks: ["^DJI", "SPY"]
+
+# SPDR ETF Components
+component:
+  "1998-12-22": ["XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLU", "XLV", "XLY"]
+  "2015-10-08": ["XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLU", "XLV", "XLY", "XLRE"]
+  "2018-06-19": ["XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLU", "XLV", "XLY", "XLRE"]
+  Union: ["XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLU", "XLV", "XLY", "XLC", "XLRE"]
+  Removed: []

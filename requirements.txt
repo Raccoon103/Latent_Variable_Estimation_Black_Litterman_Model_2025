@@ -8,3 +8,4 @@ scikit-learn
 quantstats
 gurobipy
 fastparquet
+PyYAML

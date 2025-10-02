@@ -21,6 +21,25 @@ def execute_strategy(price_df, returns_df, components, update_dates, features_di
     strat_ret = returns_df.copy()
     strat_ret['portfolio_mv'] = 0.0
     strat_ret['portfolio_bl'] = 0.0
+    
+    # ---- before you build `rebals` or right after you have returns_df/price_df/feats ----
+    master_idx = returns_df.index  # global timeline
+    # symbols that exist in both: Adj Close panel & features dict & returns universe
+    adj_syms = set(price_ohlcv_panel.columns.get_level_values(1)
+                [price_ohlcv_panel.columns.get_level_values(0) == 'Adj Close'])
+    feat_syms = set(features_dict.keys())
+    universe_syms = list(set(price_df.columns) & adj_syms & feat_syms)
+
+    # Build a boolean "valid-row" matrix: row is a date, col is a symbol; True if all features
+    # for that symbol are non-NA on that date.
+    # Use compact dtype to save RAM.
+    valid_matrix = pd.DataFrame(
+        False, index=master_idx, columns=universe_syms, dtype="bool"
+    )
+
+    for s in universe_syms:
+        f = features_dict[s].reindex(master_idx)            # align once
+        valid_matrix[s] = f.notna().all(axis=1).values      # True if that day has all features
 
     # Assemble rebalance info
     rebals = []
@@ -61,20 +80,18 @@ def execute_strategy(price_df, returns_df, components, update_dates, features_di
             mv_w.loc[reb_date, window.columns] = mv
         mv_w.loc[reb_date] = mv_w.loc[reb_date].fillna(0)
 
-        # ===== Black–Litterman =====
-        valid_syms = []
-        for c in window.columns:
-            # (Field, Symbol) 面板要有資料、特徵要有鍵
-            if ('Adj Close', c) not in price_ohlcv_panel.columns:
-                continue
-            if c not in features_dict:
-                continue
-            # 用 reindex 對齊；樣本門檻放寬到 5
-            feat_aligned = features_dict[c].reindex(window.index)
-            if feat_aligned.dropna().shape[0] >= 5:
-                valid_syms.append(c)
+        # ===== Black–Litterman (fast, vectorized) =====
+        # intersect window names with precomputed universe
+        cands = window.columns.intersection(valid_matrix.columns)
+        if len(cands) == 0:
+            valid_syms = []
+        else:
+            # count per-symbol valid rows within the window via a single slice + column sum
+            counts = valid_matrix.loc[window.index, cands].sum(axis=0)  # boolean sum
+            valid_syms = list(counts[counts >= 5].index)
 
         print(f"[BL] {len(valid_syms)} valid symbols on {reb_date.date()}.")
+
         used_mv_fallback = False
 
         if len(valid_syms) >= 2:
