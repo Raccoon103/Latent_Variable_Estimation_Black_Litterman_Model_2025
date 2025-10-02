@@ -1,43 +1,29 @@
-# Latent_Variable_Estimation_Black_Litterman_Model_2025
 
----
+# Portfolio Optimization (MV & Black–Litterman) — Modular Version with Local yfinance Cache
 
-## Getting Started
+This refactor modularizes your single-file script into a small package and adds a **local cache layer for yfinance** so you don't call the API every run.
 
-This project uses [Poetry](https://python-poetry.org/) for dependency management and packaging.
+## Key ideas
 
-**Using Python 3.10**. Required packages are stored in `pyproject.toml`
+- `dataio/yf_cache.py`: persistent per-ticker parquet cache. On each run we **only fetch missing dates**, append, and write back.
+- `features/indicators.py`: computes technical indicators (ta library) for each ticker.
+- `models/black_litterman.py`: computes BL-adjusted mean/cov using an SVR-based uncertainty estimator.
+- `models/optimization.py`: Gurobi-based MV and BL optimizers.
+- `strategies/execute.py`: rolling rebalancing loop.
+- `plotting/plots.py`: plotting helpers.
+- `config.py`: tickers, date ranges, and historical constituents.
+- `main.py`: entry point.
 
-### Prerequisites
-
-Make sure you have Poetry installed. If not, install it with:
-
-```bash
-curl -sSL https://install.python-poetry.org | python3 -
-```
-
-Or refer to the [official Poetry installation guide](https://python-poetry.org/docs/#installation).
-
----
-
-### Project Setup
-
-1. **Clone the repository:**
+## Quick start
 
 ```bash
-cd Latent_Variable_Estimation_Black_Litterman_Model_2025
+pip install -r requirements.txt
+python main.py
 ```
 
-2. **Install dependencies:**
+The first run will populate `./data/yf_cache/*.parquet`. Later runs will only fetch new data after the last cached date.
 
-```bash
-poetry install
-```
+## Notes
 
-This will create a virtual environment and install all dependencies listed in `pyproject.toml`.
-
-3. **Run the project:**
-
-```bash
-poetry run python main.py
-```
+- Gurobi is optional at import time but required when running the optimizers. If you do not have a license, you can replace the Gurobi solver with a CVXOPT/OSQP version.
+- The cache uses **daily data** (`interval='1d'`). Adjust if needed.

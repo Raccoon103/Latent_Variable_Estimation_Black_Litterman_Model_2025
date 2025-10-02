@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "latent-variable-estimation-black-litterman-model-2025"
+version = "0.1.0"
+description = ""
+authors = ["example@example.com"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+matplotlib = "^3.10.1"
+scikit-learn = "^1.6.1"
+ta = "^0.11.0"
+yfinance = "^0.2.55"
+quantstats = "^0.0.64"
+pandas = "^2.2.3"
+gurobipy = "^12.0.1"
+jupyter = "^1.1.1"
+numpy = "<2.0"
+gurobi-optimods = "^2.3.2"
+statsmodels = "^0.14.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
