@@ -3,10 +3,19 @@ import numpy as np
 import pandas as pd
 import gurobipy as gp
 
-def optimize_mean_variance(returns_df: pd.DataFrame):
+def optimize_mean_variance(returns_df: pd.DataFrame, time_limit: int | None = 10):
     """
     Classic MV:  min w' Σ w  s.t.  w' μ = 1,  w >= 0
     Returns normalized weights or None if infeasible.
+
+    Parameters
+    ----------
+    returns_df : pd.DataFrame
+        Asset returns (each column is an asset).
+    time_limit : int | None, optional
+        Time limit in seconds for the solver (passed to Gurobi as `TimeLimit`).
+        If None, no time limit is set. Default is 10 seconds to match
+        `optimize_black_litterman`.
     """
     cov = returns_df.cov().values
     mu = returns_df.mean().values
@@ -15,6 +24,9 @@ def optimize_mean_variance(returns_df: pd.DataFrame):
     with gp.Env(empty=True) as env:
         env.setParam('OutputFlag', 0)
         env.setParam('DualReductions', 0)
+        if time_limit is not None:
+            # Gurobi expects a numeric time limit in seconds
+            env.setParam('TimeLimit', float(time_limit))
         env.start()
         with gp.Model(env=env, name="mv_portfolio") as m:
             w = m.addMVar(d, name="w", lb=0.0, ub=gp.GRB.INFINITY)
@@ -27,12 +39,25 @@ def optimize_mean_variance(returns_df: pd.DataFrame):
 
             m.setObjective(port_var, gp.GRB.MINIMIZE)
             m.addConstr(port_ret == 1.0)
-            m.optimize()
+            try:
+                m.optimize()
+            except gp.GurobiError:
+                # If the optimizer threw an error (e.g. interrupted), try to
+                # return any feasible solution if present, otherwise give up.
+                if getattr(m, 'SolCount', 0) > 0:
+                    sol = w.X
+                    s = sol.sum()
+                    return sol / s if s != 0 else np.ones(d) / d
+                return None
 
-            if m.status == gp.GRB.OPTIMAL:
+            # If the solver finished optimally, return normalized solution.
+            # If it hit the time limit (or was interrupted) but produced a
+            # feasible incumbent, prefer that incumbent. Otherwise return None.
+            if m.status == gp.GRB.OPTIMAL or getattr(m, 'SolCount', 0) > 0:
                 sol = w.X
                 s = sol.sum()
                 return sol / s if s != 0 else np.ones(d) / d
+            # infeasible / no solution found within time limit
             return None
 
 

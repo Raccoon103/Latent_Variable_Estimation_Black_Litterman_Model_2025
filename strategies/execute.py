@@ -78,8 +78,8 @@ def execute_strategy(price_df, returns_df, components, update_dates, features_di
             mv = None
         if mv is not None:
             mv_w.loc[reb_date, window.columns] = mv
+        
         mv_w.loc[reb_date] = mv_w.loc[reb_date].fillna(0)
-
         # ===== Black–Litterman (fast, vectorized) =====
         # intersect window names with precomputed universe
         cands = window.columns.intersection(valid_matrix.columns)

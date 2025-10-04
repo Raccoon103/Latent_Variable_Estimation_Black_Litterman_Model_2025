@@ -1,0 +1,60 @@
+# MSCI Combined Market Configuration
+component_name: "MSCI_Combined_market"
+data_start_date: "1991-01-01"
+decision_start_date: "1999-01-01"
+end_date: "2024-02-24"
+num_indicators: 9
+cache_dir: "data/yf_cache"
+lookbacks: [50, 80, 100, 120, 150]
+
+# Benchmarks
+benchmarks: ["^DJI", "SPY"]
+
+# MSCI World Index Components (ETFs)
+component:
+    "1996-03-18": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU',  # MSCI World ETFs
+                   'EWM', 'EWW']  # MSCI Emerging Markets ETFs
+    "2000-05-12": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ']  # Adding South Korea, Taiwan, Brazil
+    "2003-02-07": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA']  # Adding South Africa
+    "2007-11-20": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH']  # Adding Chile
+    "2008-03-28": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS',  # Adding Israel
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR']  # Adding Turkey
+    "2008-04-01": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD']  # Adding Thailand
+    "2009-02-09": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG']  # Adding Colombia
+    "2009-06-22": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU']  # Adding Peru
+    "2010-05-07": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA',  # Adding USA
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO']  # Adding Egypt, Indonesia
+    "2010-09-02": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL']  # Adding New Zealand
+    "2011-12-08": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL', 'GREK']  # Adding Greece
+    "2014-05-01": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL', 'GREK', 'QAT']  # Adding Qatar
+    "2020-09-03": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+                   'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
+                   'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL', 'GREK', 'QAT', 'KWT']  # Adding Kuwait
+    # Union: all ETFs that have ever been part of the combined MSCI Index
+    "Union": ['EWA', 'EWC', 'EWD', 'EWG', 'EWH', 'EWI', 'EWJ', 'EWK', 
+              'EWL', 'EWN', 'EWO', 'EWP', 'EWQ', 'EWS', 'EWU', 'EIS', 'EUSA', 
+              'EWM', 'EWW', 'EWY', 'EWT', 'EWZ', 'EZA', 'ECH', 'TUR', 'THD', 
+              'GXG', 'EPU', 'EGPT', 'EIDO', 'ENZL', 'GREK', 'QAT', 'KWT', 'ENOR', 'EFNL', 'EDEN', 'PGAL']
+    # Removed: countries or regions without standalone ETFs
+    "Removed": ['Czech Republic', 'Hungary']    
