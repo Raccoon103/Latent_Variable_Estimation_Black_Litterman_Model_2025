@@ -135,6 +135,7 @@ def compute_black_litterman_estimates(
     features_by_stock: dict[str, pd.DataFrame],
     price_panel_window: pd.DataFrame,
     num_indicators: int,
+    tau: float = 10.0,
 ):
     """
     Black–Litterman with SVR-driven uncertainty, faithful to the older code but robust.
@@ -157,7 +158,7 @@ def compute_black_litterman_estimates(
     Sigma = returns_df.cov().values.astype(float)     # (d x d)
     d = len(returns_df.columns)
     I = np.eye(d, dtype=float)
-    tau = 1.0
+    # tau is now a parameter (readable from config); keep default 10.0 for backwards compat
 
     # Early exits
     if d == 0 or returns_df.shape[0] == 0:

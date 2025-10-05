@@ -12,7 +12,7 @@ MAX_BL_SECS = 3.0          # hard cap per rebalance for the whole BL step
 DIAG_ENABLE = True         # turn diagnostics on/off
 
 
-def execute_strategy(price_df, returns_df, components, update_dates, features_dict, price_ohlcv_panel, lookback, num_indicators):
+def execute_strategy(price_df, returns_df, components, update_dates, features_dict, price_ohlcv_panel, lookback, num_indicators, tau: float = 10.0):
     print(f"Running strategy with lookback {lookback} days.")
     monthly_rebalance_idx = price_df.groupby(price_df.index.strftime('%Y-%m')).head(1).index
     mv_w = pd.DataFrame(index=price_df.index, columns=price_df.columns)
@@ -104,7 +104,7 @@ def execute_strategy(price_df, returns_df, components, update_dates, features_di
 
             try:
                 bl_mean, bl_cov = compute_black_litterman_estimates(
-                    window_sub, features_sub, price_sub, num_indicators
+                    window_sub, features_sub, price_sub, num_indicators, tau=tau
                 )
                 bl = optimize_black_litterman(window_sub, bl_mean, bl_cov, num_indicators)
             except Exception as e:

@@ -1,11 +1,12 @@
 # MSCI Combined Market Configuration
-component_name: "MSCI_Combined_market"
+component_name: "MSCI_Combined_market1000"
 data_start_date: "1991-01-01"
 decision_start_date: "1999-01-01"
 end_date: "2024-02-24"
 num_indicators: 9
 cache_dir: "data/yf_cache"
 lookbacks: [50, 80, 100, 120, 150]
+tau: 1000
 
 # Benchmarks
 benchmarks: ["^DJI", "SPY"]

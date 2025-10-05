@@ -101,7 +101,8 @@ def main(config_file=None):
             returns_data.copy(),
             components, update_dates, feats,
             price_panel_full,
-            lb, config['num_indicators']
+            lb, config['num_indicators'],
+            tau=config.get('tau', 1.0)
         )
 
         # ---------- build report df for this window ----------
